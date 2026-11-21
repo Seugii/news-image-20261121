@@ -1,263 +1,316 @@
 #!/usr/bin/env python3
-"""Render the v2 magazine cover for make.fun news-image-20261121.
+"""Render the revised round-2 entry.png for make.fun news-image-20261121.
 
-Dark 'WORLD ON EDGE' design: near-black background, vivid red + amber
-accents, full-width hero photo with overlaid headline, 3-across and
-4-across supporting bands, two-column briefs. 23 verified stories.
-Deterministic: fixed layout, fixed fonts, no randomness, no network.
+Revision per Xie's feedback: only the hottest supporting stories get a
+small, CLEAR thumbnail; the rest are text-only. Bitcoin added with a
+PIL price chart drawn from verified Finnhub (Binance BTC/USDT) data.
+Masthead, colors and layout identity kept from round 2 ("WORLD ON EDGE").
+
+Layout (1024x1024): kicker + huge masthead + amber date band +
+full-width hero cover + red stats bar + a 4-across thumbnail row
+(AI bust, Trump, COP31, Bitcoin chart) + a 4-across text-only row
+(Peru, Riyadh, Kryvyi Rih, Gen Z) + two-column briefs + sources footer.
 """
+import hashlib
 import os
-from PIL import Image, ImageDraw, ImageFont
+
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+PHOTOS = os.path.join(BASE, "photos")
+FONTS = os.path.join(BASE, "fonts")
+
 W, H = 1024, 1024
+BG = (23, 19, 16)
+RED = (255, 46, 31)
+AMBER = (255, 158, 0)
+WHITE = (255, 255, 255)
+BODY = (232, 226, 216)
+MUTED = (154, 145, 134)
+PANEL = (33, 28, 23)
+BORDER = (58, 51, 43)
+SCRIM_TOP = (0, 0, 0)
 
-# --- palette (dark theme, red + amber) ---
-BG      = (23, 19, 16)      # near-black warm charcoal
-RED     = (255, 46, 31)     # vivid red accent
-AMBER   = (255, 158, 0)     # amber accent / date band
-INK     = (247, 242, 235)   # warm off-white text
-MUTED   = (184, 174, 162)   # muted warm grey text
-RULE    = (61, 51, 43)      # divider lines
-DARKTXT = (23, 19, 16)      # dark text on amber
-CAPTXT  = (150, 140, 128)   # photo caption grey
+MARGIN = 24
+CONTENT_W = W - 2 * MARGIN
+COL_W = 235
+COL_GAP = 12
+COL_X = [MARGIN + i * (COL_W + COL_GAP) for i in range(4)]
 
-def font(name, size):
-    return ImageFont.truetype(os.path.join(BASE, "fonts", name), size)
 
-F_TITLE = lambda s: font("LiberationSans-Bold.ttf", s)
-F_BODY  = lambda s: font("LiberationSans-Regular.ttf", s)
-F_ITAL  = lambda s: font("LiberationSans-Italic.ttf", s)
+def load_font(name, size):
+    return ImageFont.truetype(os.path.join(FONTS, name), size)
 
-def tw(draw, text, f):
-    return draw.textbbox((0, 0), text, font=f)[2]
 
-def wrap(draw, text, f, max_w):
+F_KICK = load_font("LiberationSans-Bold.ttf", 16)
+F_MAST = load_font("LiberationSans-Bold.ttf", 88)
+F_DATE = load_font("LiberationSans-Bold.ttf", 20)
+F_LABEL = load_font("LiberationSans-Bold.ttf", 15)
+F_HERO = load_font("LiberationSans-Bold.ttf", 56)
+F_DECK = load_font("LiberationSans-Regular.ttf", 19)
+F_QUOTE = load_font("LiberationSans-Italic.ttf", 17)
+F_CAP = load_font("LiberationSans-Regular.ttf", 11)
+F_STATS = load_font("LiberationSans-Bold.ttf", 19)
+F_HEAD = load_font("LiberationSans-Bold.ttf", 18)
+F_BODY = load_font("LiberationSans-Regular.ttf", 14)
+F_SMALL = load_font("LiberationSans-Regular.ttf", 11)
+F_BRIEF_H = load_font("LiberationSans-Bold.ttf", 21)
+F_BRIEF = load_font("LiberationSans-Regular.ttf", 13)
+F_BRIEF_B = load_font("LiberationSans-Bold.ttf", 13)
+F_FOOT = load_font("LiberationSans-Regular.ttf", 11)
+F_CHART = load_font("LiberationSans-Bold.ttf", 11)
+F_CHART_B = load_font("LiberationSans-Bold.ttf", 12)
+F_CHART_SM = load_font("LiberationSans-Regular.ttf", 10)
+
+
+def wrap_lines(draw, text, font, max_w):
     words = text.split()
-    lines, cur = [], ""
-    for w in words:
-        trial = (cur + " " + w).strip()
-        if tw(draw, trial, f) <= max_w:
+    lines = []
+    cur = ""
+    for word in words:
+        trial = (cur + " " + word).strip()
+        if draw.textlength(trial, font=font) <= max_w:
             cur = trial
         else:
             if cur:
                 lines.append(cur)
-            cur = w
+            cur = word
     if cur:
         lines.append(cur)
     return lines
 
-def cover(img, tw_, th_, vpos=0.5):
+
+def draw_lines(draw, x, y, text, font, fill, max_w, line_h, max_lines=None):
+    lines = wrap_lines(draw, text, font, max_w)
+    if max_lines is not None:
+        lines = lines[:max_lines]
+    for i, line in enumerate(lines):
+        draw.text((x, y + i * line_h), line, font=font, fill=fill)
+    return y + len(lines) * line_h
+
+
+def centered(draw, y, text, font, fill):
+    w = draw.textlength(text, font=font)
+    draw.text(((W - w) / 2, y), text, font=font, fill=fill)
+
+
+def frac_crop(img, box, tw, th):
     iw, ih = img.size
-    scale = max(tw_ / iw, th_ / ih)
-    nw, nh = round(iw * scale), round(ih * scale)
-    img = img.resize((nw, nh), Image.LANCZOS)
-    x0 = (nw - tw_) // 2
-    y0 = round((nh - th_) * vpos)
-    y0 = max(0, min(y0, nh - th_))
-    return img.crop((x0, y0, x0 + tw_, y0 + th_))
+    left = int(box[0] * iw)
+    upper = int(box[1] * ih)
+    right = int(box[2] * iw)
+    lower = int(box[3] * ih)
+    cropped = img.crop((left, upper, right, lower))
+    return ImageOps.fit(cropped, (tw, th), method=Image.LANCZOS)
 
-def photo(path, tw_, th_, vpos=0.5):
-    return cover(Image.open(os.path.join(BASE, "photos", path)).convert("RGB"), tw_, th_, vpos)
 
-def scrim(img, top_frac=0.30, max_alpha=225):
-    w, h = img.size
-    grad = Image.new("L", (1, h))
-    px = grad.load()
-    for y in range(h):
-        t = y / h
-        if t < top_frac:
-            a = 0
+def paste_thumb(img, draw, x, y, w, h, photo, box):
+    src = Image.open(os.path.join(PHOTOS, photo)).convert("RGB")
+    thumb = frac_crop(src, box, w, h)
+    img.paste(thumb, (x, y))
+    draw.rectangle([x, y, x + w - 1, y + h - 1], outline=BORDER, width=1)
+
+
+def draw_btc_chart(draw, x, y, w, h):
+    # Verified Finnhub (Binance BTC/USDT): daily closes Nov 18-20 plus
+    # the 21 Nov 11:19 UTC quote. Price fell below $60,000 for the
+    # first time since July; lowest since September 2024.
+    data = [("18", 63068), ("19", 61987), ("20", 58952), ("21", 57875)]
+    draw.rectangle([x, y, x + w - 1, y + h - 1], fill=PANEL, outline=BORDER)
+    left, right = x + 16, x + w - 12
+    top, bottom = y + 18, y + h - 28
+    lo, hi = 55000, 65000
+
+    def px(i):
+        return left + (right - left) * i / (len(data) - 1)
+
+    def py(price):
+        return bottom - (price - lo) / (hi - lo) * (bottom - top)
+
+    # dashed $60k break line
+    y60 = py(60000)
+    for xx in range(left, right, 8):
+        draw.line([(xx, y60), (min(xx + 4, right), y60)],
+                  fill=(120, 110, 100), width=1)
+    draw.text((right - 34, y60 - 13), "$60k", font=F_CHART_SM,
+              fill=(150, 140, 130))
+    # red line + white dots
+    pts = [(px(i), py(p)) for i, (_, p) in enumerate(data)]
+    draw.line(pts, fill=RED, width=3, joint="curve")
+    for pxx, pyy in pts:
+        draw.ellipse([pxx - 4, pyy - 4, pxx + 4, pyy + 4],
+                     fill=WHITE, outline=RED, width=1)
+    # value labels
+    draw.text((pts[0][0] - 2, pts[0][1] - 15), "$63,068",
+              font=F_CHART, fill=WHITE)
+    draw.text((pts[-1][0] - 52, pts[-1][1] + 8), "$57,875",
+              font=F_CHART, fill=RED)
+    # 24h change tag, top right
+    tag = "−6.3%"
+    tw = draw.textlength(tag, font=F_CHART_B)
+    draw.text((x + w - 8 - tw, y + 5), tag, font=F_CHART_B, fill=RED)
+    # date labels
+    for i, (d, _) in enumerate(data):
+        dw = draw.textlength(d, font=F_CHART_SM)
+        draw.text((px(i) - dw / 2, bottom + 5), d,
+                  font=F_CHART_SM, fill=MUTED)
+
+
+def scrim(img, x0, y0, w, h, a_top=60, a_bot=210):
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    for i in range(h):
+        a = int(a_top + (a_bot - a_top) * (i / h) ** 1.2)
+        od.line([(0, i), (w, i)], fill=(0, 0, 0, a))
+    img.paste(overlay, (x0, y0), overlay)
+
+
+def main():
+    img = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img)
+
+    # kicker
+    centered(draw, 6, "THE WORLD, IN ONE IMAGE", F_KICK, AMBER)
+
+    # masthead: WORLD (white) + ON EDGE (red), huge and centered
+    part1, part2 = "WORLD ", "ON EDGE"
+    w1 = draw.textlength(part1, font=F_MAST)
+    w2 = draw.textlength(part2, font=F_MAST)
+    mx = (W - w1 - w2) / 2
+    draw.text((mx, 24), part1, font=F_MAST, fill=WHITE)
+    draw.text((mx + w1, 24), part2, font=F_MAST, fill=RED)
+
+    # amber date band
+    draw.rectangle([0, 116, W - 1, 145], fill=AMBER)
+    centered(draw, 121, "SATURDAY, 21 NOVEMBER 2026", F_DATE, (0, 0, 0))
+
+    # hero: full-width photo with overlaid headline
+    hero = Image.open(os.path.join(PHOTOS, "cover_tusk.jpg")).convert("RGB")
+    hero = ImageOps.fit(hero, (W, 250), method=Image.LANCZOS,
+                        centering=(0.5, 0.35))
+    img.paste(hero, (0, 146))
+    scrim(img, 0, 146, W, 250)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([MARGIN, 158, MARGIN + 282, 183], fill=RED)
+    lab = "COVER STORY — NATO UNDER FIRE"
+    lw = draw.textlength(lab, font=F_LABEL)
+    draw.text((MARGIN + (282 - lw) / 2, 164), lab, font=F_LABEL, fill=WHITE)
+    draw.text((MARGIN, 206), "MISSILES LAND IN", font=F_HERO, fill=WHITE)
+    draw.text((MARGIN, 270), "NATO POLAND", font=F_HERO, fill=WHITE)
+    draw.text((MARGIN, 342),
+              "Two Russian Kh-101s and a drone crashed in Poland during a mass strike on Ukraine.",
+              font=F_DECK, fill=WHITE)
+    draw.text((MARGIN, 368),
+              "Tusk: “intentional provocation” · Rutte: “grave violation”",
+              font=F_QUOTE, fill=AMBER)
+    cap = "FILE PHOTO: PM Donald Tusk with President Zelenskyy, Feb 2024"
+    cw = draw.textlength(cap, font=F_CAP)
+    draw.text((W - MARGIN - cw, 382), cap, font=F_CAP, fill=(200, 195, 185))
+
+    # red stats bar
+    draw.rectangle([0, 396, W - 1, 423], fill=RED)
+    centered(draw, 401, "400+ DRONES · 110+ MISSILES · 0 HURT IN POLAND",
+             F_STATS, WHITE)
+
+    # ---- thumbnail row: only the hottest 4 stories get an image ----
+    thumb_y = 436
+    thumb_h = 118
+    thumbs = [
+        dict(photo="nyse.jpg", box=(0.40, 0.15, 0.70, 0.27),
+             head="AI BUST: NASDAQ −5.3%",
+             body="Worst week since 2020 — $4 trillion wiped out. Anthropic sank to $88.91. Nvidia −14%.",
+             cap="FILE PHOTO: NYSE sign"),
+        dict(photo="trump.jpg", box=(0.06, 0.217, 0.94, 0.543),
+             head="TRUMP WEIGHS IRAN STRIKES",
+             body="US weighs another round of strikes as Israel presses for action.",
+             cap="FILE PHOTO: President Trump, Jan 2025"),
+        dict(photo="cop31.jpg", box=(0.30, 0.05, 1.0, 0.55),
+             head="COP31 IN OVERTIME, NO DEAL",
+             body="Draft drops every mention of fossil fuels. A third text is due Saturday morning.",
+             cap="COP31, Antalya, 12 Nov 2026"),
+        dict(chart=True,
+             head="BITCOIN SINKS BELOW $60,000",
+             body="BTC $57,875, down 6.3% in 24h — lowest since September 2024.",
+             cap="CHART: Binance BTC/USDT, Nov 18–21"),
+    ]
+    for i, cell in enumerate(thumbs):
+        x = COL_X[i]
+        if cell.get("chart"):
+            draw_btc_chart(draw, x, thumb_y, COL_W, thumb_h)
         else:
-            a = int(max_alpha * (t - top_frac) / (1 - top_frac))
-        px[0, y] = a
-    grad = grad.resize((w, h))
-    black = Image.new("RGB", (w, h), (10, 8, 7))
-    img.paste(Image.composite(black, img, grad), (0, 0))
-    return img
+            paste_thumb(img, draw, x, thumb_y, COL_W, thumb_h,
+                        cell["photo"], cell["box"])
+        draw_lines(draw, x, thumb_y + 126, cell["head"], F_HEAD, WHITE,
+                   COL_W, 21, max_lines=2)
+        draw_lines(draw, x, thumb_y + 172, cell["body"], F_BODY, BODY,
+                   COL_W, 16, max_lines=3)
+        draw.text((x, thumb_y + 226), cell["cap"], font=F_SMALL, fill=MUTED)
 
-def kryvyi_rih(w_, h_):
-    """Flat night-scene illustration for Kryvyi Rih (PIL-drawn)."""
-    im = Image.new("RGB", (w_, h_), (16, 14, 26))
-    d = ImageDraw.Draw(im)
-    d.ellipse([w_ - 52, 8, w_ - 18, 42], fill=(255, 158, 0))
-    d.rectangle([0, h_ * 0.45, w_ * 0.30, h_], fill=(8, 7, 12))
-    d.rectangle([w_ * 0.28, h_ * 0.30, w_ * 0.58, h_], fill=(12, 10, 18))
-    d.rectangle([w_ * 0.56, h_ * 0.52, w_ * 0.82, h_], fill=(8, 7, 12))
-    d.rectangle([w_ * 0.80, h_ * 0.38, w_, h_], fill=(12, 10, 18))
-    for (x, y) in [(14, 52), (34, 66), (w_ * 0.34, 40), (w_ * 0.44, 58),
-                   (w_ * 0.62, 62), (w_ * 0.86, 46), (w_ * 0.92, 66)]:
-        d.rectangle([x, y, x + 7, y + 9], fill=(255, 190, 60))
-    d.rectangle([0, h_ - 8, w_, h_], fill=(200, 30, 18))
-    return im
+    # ---- text-only row: no image, headline + body only ----
+    text_y = 688
+    texts = [
+        ("PERU QUAKE 6.7, NO DEATHS",
+         "Magnitude 6.7 quake shook Lima; residents fled into the streets. No deaths."),
+        ("RIYADH STOPS 3 HOUTHI MISSILES",
+         "Second attack on the Saudi capital in days; tallest tower hit Thursday."),
+        ("KRYVYI RIH: BOY, 7, KILLED",
+         "Double-tap ballistic strike: a boy, 7, and a paramedic killed; 42 hurt."),
+        ("GEN Z STRIKE SWEEPS EUROPE",
+         "Youth walkouts in 25 countries over living costs, climate and rearmament."),
+    ]
+    for i, (head, body) in enumerate(texts):
+        x = COL_X[i]
+        draw.rectangle([x, text_y, x + COL_W - 1, text_y + 2], fill=RED)
+        draw_lines(draw, x, text_y + 10, head, F_HEAD, WHITE,
+                   COL_W, 21, max_lines=2)
+        draw_lines(draw, x, text_y + 56, body, F_BODY, BODY,
+                   COL_W, 16, max_lines=3)
 
-# ================= build =================
-img = Image.new("RGB", (W, H), BG)
-d = ImageDraw.Draw(img)
-MX = 16
-CW = W - 2 * MX
+    # ---- briefs, two columns ----
+    draw.text((MARGIN, 812), "THE DAY IN BRIEF", font=F_BRIEF_H, fill=RED)
+    briefs_left = [
+        "KYIV: 3 killed as strikes cripple bridges, cut power.",
+        "KERCH: Bridge hit 3rd time; Putin vows 'far more painful' reply.",
+        "UK: 1,000 long-range drones for Ukraine in a £260m package.",
+        "TRUMP: Tells Europe to defund Ukraine after Putin summit.",
+        "AI TAX: 'Tremendous tax' threat on AI centres built abroad.",
+        "IRAN: War 'into 2027'; IRGC claims 58th MQ-9 downed, US silent.",
+        "N. KOREA: Yongbyon expanded; IAEA warns 'serious concern'.",
+        "RIKERS: Close Rikers by 2032; four borough jails, $16bn.",
+    ]
+    briefs_right = [
+        "UFO FILES: 43 UAP files, 3 new videos released; archive 521.",
+        "UKRAINE: Kyiv hit three Russian launchers; one destroyed.",
+        "EU AID: €1.71bn more — drones, ammunition, air defence.",
+        "GREENLAND: Denmark ratifies US security deal, 109–0.",
+        "INDIA–JAPAN: 2+2 talks deepen defence ties.",
+        "CANCER PILL: Daraxonrasib + chemo shrank tumours 61%.",
+        "ANTHROPIC: $2tn debut, then −8.5% on day two.",
+    ]
+    brief_w = 476
+    for col, items in ((MARGIN, briefs_left), (524, briefs_right)):
+        y = 840
+        for item in items:
+            draw.rectangle([col, y + 5, col + 5, y + 10], fill=RED)
+            label, _, rest = item.partition(": ")
+            label = label + ":"
+            lx = col + 14
+            draw.text((lx, y), label, font=F_BRIEF_B, fill=WHITE)
+            lw = draw.textlength(label, font=F_BRIEF_B)
+            draw.text((lx + lw + 4, y), rest, font=F_BRIEF, fill=BODY)
+            y += 18
 
-# ---------- masthead ----------
-kick = "THE WORLD, IN ONE IMAGE"
-kf = F_TITLE(15)
-d.text(((W - tw(d, kick, kf)) // 2, 8), kick, font=kf, fill=AMBER)
-title_f = F_TITLE(80)
-p1, p2 = "WORLD ", "ON EDGE"
-w1, w2 = tw(d, p1, title_f), tw(d, p2, title_f)
-x = (W - w1 - w2) // 2
-d.text((x, 24), p1, font=title_f, fill=INK)
-d.text((x + w1, 24), p2, font=title_f, fill=RED)
-d.rectangle([0, 104, W, 128], fill=AMBER)
-date = "SATURDAY, 21 NOVEMBER 2026"
-df = F_TITLE(21)
-d.text(((W - tw(d, date, df)) // 2, 105), date, font=df, fill=DARKTXT)
+    # footer
+    centered(draw, 994,
+             "Sources: AP · Reuters · WSJ · CNN · NYT · ISW · IAEA · USGS · European Commission · Finnhub / Binance · CoinMarketCap — Photos: see README",
+             F_FOOT, MUTED)
 
-# ---------- hero: full-width photo, overlaid headline ----------
-HY, HH = 128, 280
-hero = photo("cover_tusk.jpg", W, HH, vpos=0.50)
-hero = scrim(hero, top_frac=0.30, max_alpha=225)
-img.paste(hero, (0, HY))
-chip = "COVER STORY — NATO UNDER FIRE"
-cf = F_TITLE(16)
-cw_ = tw(d, chip, cf) + 18
-d.rectangle([MX, HY + 12, MX + cw_, HY + 36], fill=RED)
-d.text((MX + 9, HY + 15), chip, font=cf, fill=(255, 255, 255))
-hf = F_TITLE(56)
-d.text((MX, HY + 110), "MISSILES LAND IN", font=hf, fill=INK)
-d.text((MX, HY + 166), "NATO POLAND", font=hf, fill=INK)
-dkf = F_BODY(20)
-d.text((MX, HY + 228), "Two Russian Kh-101s and a drone crashed in Poland during a mass strike on Ukraine.",
-       font=dkf, fill=(235, 230, 222))
-qf = F_ITAL(18)
-d.text((MX, HY + 252), 'Tusk: "intentional provocation"  ·  Rutte: "grave violation"',
-       font=qf, fill=AMBER)
-cap = "FILE PHOTO: PM Donald Tusk with President Zelenskyy, Feb 2024"
-capf = F_BODY(11)
-d.text((W - MX - tw(d, cap, capf), HY + HH - 16), cap, font=capf, fill=CAPTXT)
+    out = os.path.join(BASE, "entry.png")
+    img.save(out, "PNG")
+    digest = hashlib.sha256(open(out, "rb").read()).hexdigest()
+    print("entry.png", img.size, os.path.getsize(out), "bytes")
+    print("sha256", digest)
 
-# ---------- stats bar (red) ----------
-SY, SH = HY + HH, 26
-d.rectangle([0, SY, W, SY + SH], fill=RED)
-stats = "400+ DRONES  ·  110+ MISSILES  ·  0 HURT IN POLAND"
-sf = F_TITLE(17)
-d.text(((W - tw(d, stats, sf)) // 2, SY + 4), stats, font=sf, fill=(255, 255, 255))
 
-# ---------- supporting row A: 3 photo-top stories ----------
-RA_Y, RA_H = SY + SH + 10, 160
-COLW = (CW - 2 * 12) // 3
-rowA = [
-    ("nyse.jpg", "AI BUST: NASDAQ −5.3%",
-     "Worst week since 2020 — $4 trillion wiped out. Anthropic sank to $88.91. Nvidia −14%.",
-     "FILE PHOTO: New York Stock Exchange floor"),
-    ("cop31.jpg", "COP31 IN OVERTIME, NO DEAL",
-     "Draft drops every mention of fossil fuels. A third text is due Saturday morning in Antalya.",
-     "COP31, Antalya, 12 Nov 2026"),
-    ("peru_lima.jpg", "PERU QUAKE 6.7, NO DEATHS",
-     "Magnitude 6.7 quake shook Lima; residents fled into the streets. No deaths.",
-     "FILE PHOTO: Lima skyline"),
-]
-for i, (ph, head, body, cap) in enumerate(rowA):
-    x0 = MX + i * (COLW + 12)
-    p = photo(ph, COLW, 80, vpos=0.5)
-    img.paste(p, (x0, RA_Y))
-    hy = RA_Y + 80 + 6
-    for ln in wrap(d, head, F_TITLE(21), COLW):
-        d.text((x0, hy), ln, font=F_TITLE(21), fill=INK)
-        hy += 24
-    by = hy + 2
-    for ln in wrap(d, body, F_BODY(14), COLW)[:2]:
-        d.text((x0, by), ln, font=F_BODY(14), fill=MUTED)
-        by += 17
-    d.text((x0, RA_Y + RA_H - 13), cap, font=F_BODY(10), fill=CAPTXT)
-    if i < 2:
-        d.line([x0 + COLW + 6, RA_Y, x0 + COLW + 6, RA_Y + RA_H - 4], fill=RULE, width=1)
-
-# ---------- supporting row B: 4 narrow photo-top stories ----------
-RB_Y, RB_H = RA_Y + RA_H + 8, 164
-COLW2 = (CW - 3 * 10) // 4
-rowB = [
-    ("riyadh.jpg", "RIYADH STOPS 3 HOUTHI MISSILES",
-     "Second attack on the Saudi capital in days; tallest tower hit Thursday.",
-     "FILE PHOTO: Riyadh skyline", False),
-    (None, "KRYVYI RIH: BOY, 7, KILLED",
-     "Double-tap ballistic strike: a boy, 7, and a paramedic killed; 42 hurt.",
-     "ILLUSTRATION", True),
-    ("trump.jpg", "TRUMP WEIGHS IRAN STRIKES",
-     "US weighs another round of strikes as Israel presses for action.",
-     "FILE PHOTO: President Trump, Jan 2025", False),
-    ("genz_protest.jpg", "GEN Z STRIKE SWEEPS EUROPE",
-     "Youth walkouts in 25 countries over living costs, climate and rearmament.",
-     "FILE PHOTO: youth climate strike, 2022", False),
-]
-for i, (ph, head, body, cap, illus) in enumerate(rowB):
-    x0 = MX + i * (COLW2 + 10)
-    if illus:
-        p = kryvyi_rih(COLW2, 58)
-    else:
-        p = photo(ph, COLW2, 58, vpos=0.30 if ph == "trump.jpg" else 0.5)
-    img.paste(p, (x0, RB_Y))
-    hy = RB_Y + 58 + 5
-    for ln in wrap(d, head, F_TITLE(17), COLW2):
-        d.text((x0, hy), ln, font=F_TITLE(17), fill=INK)
-        hy += 20
-    by = hy + 1
-    for ln in wrap(d, body, F_BODY(13), COLW2)[:2]:
-        d.text((x0, by), ln, font=F_BODY(13), fill=MUTED)
-        by += 16
-    d.text((x0, RB_Y + RB_H - 12), cap, font=F_BODY(10), fill=CAPTXT)
-    if i < 3:
-        d.line([x0 + COLW2 + 5, RB_Y, x0 + COLW2 + 5, RB_Y + RB_H - 4], fill=RULE, width=1)
-
-# ---------- briefs ----------
-BR_Y = RB_Y + RB_H + 10
-bf = F_TITLE(20)
-d.text((MX, BR_Y), "THE DAY IN BRIEF", font=bf, fill=RED)
-d.line([MX + tw(d, "THE DAY IN BRIEF", bf) + 10, BR_Y + 11,
-        W - MX, BR_Y + 11], fill=RULE, width=1)
-briefs_left = [
-    ("KYIV:", "3 killed as strikes cripple bridges, cut power."),
-    ("KERCH:", "Bridge hit 3rd time; Putin vows \u201cfar more painful\u201d reply."),
-    ("UK:", "1,000 long-range drones for Ukraine in a \u00a3260m package."),
-    ("TRUMP:", "Tells Europe to defund Ukraine after Putin summit."),
-    ("AI TAX:", "\u201cTremendous tax\u201d threat on AI centres built abroad."),
-    ("IRAN:", "War \u201cinto 2027\u201d; IRGC claims 58th MQ-9 downed, US silent."),
-    ("N. KOREA:", "Yongbyon plant expanded; IAEA warns of \u201cserious concern\u201d."),
-    ("RIKERS:", "Close Rikers by 2032; four borough jails, $16bn."),
-]
-briefs_right = [
-    ("UFO FILES:", "43 UAP files, 3 new videos released; archive 521."),
-    ("UKRAINE:", "Kyiv hit three Russian launchers; one destroyed."),
-    ("EU AID:", "\u20ac1.71bn more \u2014 drones, ammunition, air defence."),
-    ("GREENLAND:", "Denmark ratifies US security deal, 109\u20130."),
-    ("INDIA\u2013JAPAN:", "2+2 talks deepen defence ties; live-fire in India."),
-    ("CANCER PILL:", "Daraxonrasib + chemo: tumours shrank in 61%, vanished in 8%."),
-    ("ANTHROPIC:", "$2tn debut, then \u22128.5% on day two."),
-]
-def draw_briefs(items, x0, w_, y0):
-    y = y0
-    lf, bf2 = F_TITLE(14), F_BODY(14)
-    for lead, txt in items:
-        lead_w = tw(d, lead + " ", lf)
-        lines = wrap(d, txt, bf2, w_ - lead_w)
-        d.rectangle([x0, y + 4, x0 + 7, y + 11], fill=RED)
-        d.text((x0 + 12, y), lead, font=lf, fill=INK)
-        lx = x0 + 12 + lead_w
-        d.text((lx, y), lines[0], font=bf2, fill=MUTED)
-        y += 16
-        for ln in lines[1:2]:
-            d.text((x0 + 12, y), ln, font=bf2, fill=MUTED)
-            y += 16
-        y += 5
-    return y
-by0 = BR_Y + 26
-half = (CW - 20) // 2
-draw_briefs(briefs_left, MX, half, by0)
-draw_briefs(briefs_right, MX + half + 20, half, by0)
-
-# ---------- footer ----------
-ft = "Sources: AP \u00b7 Reuters \u00b7 WSJ \u00b7 CNN \u00b7 NYT \u00b7 ISW \u00b7 IAEA \u00b7 USGS \u00b7 European Commission  \u2014  Photos: see README"
-ff = F_BODY(11)
-d.text((MX, H - 15), ft, font=ff, fill=CAPTXT)
-
-img.save(os.path.join(BASE, "entry.png"), optimize=True)
-print("saved entry.png", img.size)
+if __name__ == "__main__":
+    main()
