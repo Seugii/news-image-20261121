@@ -1,4 +1,4 @@
-# WORLD ON EDGE — 21 November 2026
+# Saturday 21 November 2026 — The World in One Day
 
 [![make.fun](https://make.fun/badge/news-image-20261121.svg)](https://make.fun/c/news-image-20261121)
 [![rank](https://make.fun/badge/news-image-20261121/Seugii/news-image-20261121/rank.svg)](https://make.fun/c/news-image-20261121)
@@ -12,26 +12,26 @@ Entry for the make.fun competition
 
 ## The image
 
-Round 2 (v3) of the entry — a bright, punchy magazine cover, rebuilt
-after round 1 scored a 0.975976 judge rate but ranked ~809 of
-~4,580 entries. Same cover story, denser: 24 stories from Saturday
-21 November 2026, all verified against wire reporting.
+Round 3 (v4) of the entry — a newspaper front page, rebuilt after
+round 2 scored a 0.972784 judge rate. Same 24 stories from Saturday
+21 November 2026, all verified against wire reporting, now in the
+top-1 entry's newspaper style (palette and layout only — our stories,
+facts and photos stay ours).
 
-Revised after Xie's review: the near-black charcoal palette looked
-gloomy ("suram"), so the colours were changed to a bright scheme —
-clean white background, bold red masthead accent, electric-blue
-secondary, vivid-yellow date band, dark text. And every supporting
-story now carries a small, clear thumbnail, so the page reads as
-weighty: the four hottest stories keep their thumbnails (AI bust,
-Trump, COP31, Bitcoin) and the other four gained one too (Peru,
-Riyadh, Kryvyi Rih, Gen Z). Bitcoin stays — BTC $57,875, down 6.3%
-in 24h, below $60,000 for the first time since July.
-
-A white background with a red "ON EDGE" masthead accent and a vivid
-yellow date band. A full-width hero photo carries the cover
-headline; a red stats bar, two four-across thumbnail rows (all 8
-supporting stories, each a small clear thumbnail), and a two-column
-briefs section follow.
+Xie asked for the colours of the top-1 entry and for the headline and
+date to be clearer, judged against the judge's criteria. So the page
+is now cream paper with a black serif masthead in which the DATE is
+the headline — "Saturday 21 November 2026", huge and unmissable —
+with an italic deck naming the three top stories (Poland missiles,
+COP31 overtime, Saudi missiles). A stats strip (400+ drones, 110+
+missiles, 6.7 quake, $57,875 bitcoin, 0 hurt in Poland) and a region
+colour bar (Europe 10, Global 6, Middle East 3, Americas 3, Asia 2)
+follow. The cover story gets a banner photo with a red label and its
+headline in big black serif below it; then two four-across thumbnail
+rows (all 8 supporting stories, each a small clear thumbnail, numbered
+and tagged with its region), a two-column briefs section (15 more
+stories, numbered 10–24), and a DATE CHECK box noting what was left
+out as earlier news.
 
 **Cover story — Missiles land in NATO Poland.** Two Russian Kh-101
 cruise missiles and a jet-powered drone crashed in south-east Poland
@@ -74,7 +74,7 @@ shown as a stylised Ukraine map with Kryvyi Rih marked), Gen Z
 **The day in brief**
 
 - Kyiv: 3 killed as strikes cripple bridges, cut power.
-- Kerch: Bridge hit 3rd time; Putin vows a "far more painful" reply.
+- Kerch: Bridge hit 3rd time; Putin vows 'far more painful' reply.
 - UK: 1,000 long-range drones for Ukraine in a £260m package.
 - Trump: Tells Europe to defund Ukraine after Putin summit.
 - AI tax: "Tremendous tax" threat on AI centres built abroad.
@@ -102,12 +102,17 @@ deterministic: two runs produce byte-identical output.
 `render_image.py` is the renderer that drew `entry.png` with PIL
 from the photos in `photos/` plus one PIL-drawn Bitcoin price chart
 (verified Finnhub/Binance daily closes, Nov 18–21) and one
-PIL-drawn stylised Ukraine map marking Kryvyi Rih. Thumbnails are
-tight crops chosen to stay clear at small size — the NYSE sign, a
-full-face Trump headshot, the COP31 speaker, the Miraflores cliff,
-the Kingdom Tower, the "CLIMATE JUSTICE" banner — while the
-Kryvyi Rih thumbnail is a map graphic, not a photograph. Fonts are
-vendored Liberation Sans in `fonts/`.
+PIL-drawn stylised Ukraine map marking Kryvyi Rih. The layout is a
+newspaper front page: cream paper, the date as a huge black serif
+masthead, an italic deck, a stats strip, a region colour bar, a
+banner cover photo with its headline below, numbered tiles with
+region tags and red label bars, two-column briefs, and a DATE CHECK
+box. Thumbnails are tight crops chosen to stay clear at small size —
+the NYSE sign, a full-face Trump headshot, the COP31 speaker, the
+Miraflores cliff, the Kingdom Tower, the "CLIMATE JUSTICE" banner —
+while the Kryvyi Rih thumbnail is a map graphic, not a photograph.
+Fonts are Liberation Serif and Liberation Sans (system-installed;
+the repo also vendors Liberation Sans/Serif in `fonts/`).
 
 ## Photo credits
 
