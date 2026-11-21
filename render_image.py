@@ -1,315 +1,335 @@
 #!/usr/bin/env python3
-"""Render the revised round-2 entry.png for make.fun news-image-20261121.
+"""Render WORLD ON EDGE — 21 November 2026, bright palette (revision 3).
 
-Revision per Xie's feedback: only the hottest supporting stories get a
-small, CLEAR thumbnail; the rest are text-only. Bitcoin added with a
-PIL price chart drawn from verified Finnhub (Binance BTC/USDT) data.
-Masthead, colors and layout identity kept from round 2 ("WORLD ON EDGE").
-
-Layout (1024x1024): kicker + huge masthead + amber date band +
-full-width hero cover + red stats bar + a 4-across thumbnail row
-(AI bust, Trump, COP31, Bitcoin chart) + a 4-across text-only row
-(Peru, Riyadh, Kryvyi Rih, Gen Z) + two-column briefs + sources footer.
+Clean white background, bold red masthead accent, electric-blue secondary,
+vivid-yellow highlight, dark text. Magazine cover, 1024x1024, deterministic.
+Reads photos from photos/, fonts from fonts/, writes entry.png next to itself.
 """
 import hashlib
 import os
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-PHOTOS = os.path.join(BASE, "photos")
-FONTS = os.path.join(BASE, "fonts")
-
+HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1024, 1024
-BG = (23, 19, 16)
-RED = (255, 46, 31)
-AMBER = (255, 158, 0)
-WHITE = (255, 255, 255)
-BODY = (232, 226, 216)
-MUTED = (154, 145, 134)
-PANEL = (33, 28, 23)
-BORDER = (58, 51, 43)
-SCRIM_TOP = (0, 0, 0)
-
 MARGIN = 24
-CONTENT_W = W - 2 * MARGIN
-COL_W = 235
-COL_GAP = 12
-COL_X = [MARGIN + i * (COL_W + COL_GAP) for i in range(4)]
+GAP = 16
+COLW = (W - 2 * MARGIN - 3 * GAP) // 4  # 232
+
+# ---- bright palette (option a) ----
+WHITE = (255, 255, 255)
+INK = (18, 18, 18)
+BODY = (52, 52, 52)
+MUTED = (110, 110, 110)
+RED = (227, 6, 19)        # vivid red
+BLUE = (0, 87, 255)       # electric blue
+YELLOW = (255, 200, 0)    # vivid yellow
+PANEL = (247, 247, 242)   # very light warm grey (briefs panel)
+RULE = (222, 222, 216)
+MAP_FILL = (214, 230, 244)
+MAP_LINE = (90, 127, 166)
 
 
-def load_font(name, size):
-    return ImageFont.truetype(os.path.join(FONTS, name), size)
+def font(name, size):
+    return ImageFont.truetype(os.path.join(HERE, "fonts", name), size)
 
 
-F_KICK = load_font("LiberationSans-Bold.ttf", 16)
-F_MAST = load_font("LiberationSans-Bold.ttf", 88)
-F_DATE = load_font("LiberationSans-Bold.ttf", 20)
-F_LABEL = load_font("LiberationSans-Bold.ttf", 15)
-F_HERO = load_font("LiberationSans-Bold.ttf", 56)
-F_DECK = load_font("LiberationSans-Regular.ttf", 19)
-F_QUOTE = load_font("LiberationSans-Italic.ttf", 17)
-F_CAP = load_font("LiberationSans-Regular.ttf", 11)
-F_STATS = load_font("LiberationSans-Bold.ttf", 19)
-F_HEAD = load_font("LiberationSans-Bold.ttf", 18)
-F_BODY = load_font("LiberationSans-Regular.ttf", 14)
-F_SMALL = load_font("LiberationSans-Regular.ttf", 11)
-F_BRIEF_H = load_font("LiberationSans-Bold.ttf", 21)
-F_BRIEF = load_font("LiberationSans-Regular.ttf", 13)
-F_BRIEF_B = load_font("LiberationSans-Bold.ttf", 13)
-F_FOOT = load_font("LiberationSans-Regular.ttf", 11)
-F_CHART = load_font("LiberationSans-Bold.ttf", 11)
-F_CHART_B = load_font("LiberationSans-Bold.ttf", 12)
-F_CHART_SM = load_font("LiberationSans-Regular.ttf", 10)
+F_BOLD = lambda s: font("LiberationSans-Bold.ttf", s)
+F_REG = lambda s: font("LiberationSans-Regular.ttf", s)
+F_IT = lambda s: font("LiberationSans-Italic.ttf", s)
 
 
-def wrap_lines(draw, text, font, max_w):
-    words = text.split()
-    lines = []
-    cur = ""
-    for word in words:
+def wrap(draw, text, fnt, max_w):
+    """Word-wrap text to fit max_w; returns list of lines."""
+    lines, cur = [], ""
+    for word in text.split():
         trial = (cur + " " + word).strip()
-        if draw.textlength(trial, font=font) <= max_w:
+        if draw.textlength(trial, font=fnt) <= max_w or not cur:
             cur = trial
         else:
-            if cur:
-                lines.append(cur)
+            lines.append(cur)
             cur = word
     if cur:
         lines.append(cur)
     return lines
 
 
-def draw_lines(draw, x, y, text, font, fill, max_w, line_h, max_lines=None):
-    lines = wrap_lines(draw, text, font, max_w)
-    if max_lines is not None:
-        lines = lines[:max_lines]
-    for i, line in enumerate(lines):
-        draw.text((x, y + i * line_h), line, font=font, fill=fill)
-    return y + len(lines) * line_h
+def cover_crop(img, box, tw, th):
+    """Crop img to fractional box, then centre-crop to tw:th and resize."""
+    sw, sh = img.size
+    x0, y0, x1, y1 = box
+    region = img.crop((int(x0 * sw), int(y0 * sh), int(x1 * sw), int(y1 * sh)))
+    rw, rh = region.size
+    target = tw / th
+    if rw / rh > target:
+        nw = int(rh * target)
+        x = (rw - nw) // 2
+        region = region.crop((x, 0, x + nw, rh))
+    else:
+        nh = int(rw / target)
+        y = (rh - nh) // 2
+        region = region.crop((0, y, rw, y + nh))
+    return region.resize((tw, th), Image.LANCZOS)
 
 
-def centered(draw, y, text, font, fill):
-    w = draw.textlength(text, font=font)
-    draw.text(((W - w) / 2, y), text, font=font, fill=fill)
+def bottom_gradient(base, top_y, bottom_y, max_alpha=205):
+    """Darken the bottom of a photo so white overlay text stays legible."""
+    grad = Image.new("L", (1, bottom_y - top_y))
+    for i in range(bottom_y - top_y):
+        grad.putpixel((0, i), int(max_alpha * (i / (bottom_y - top_y)) ** 1.4))
+    grad = grad.resize((base.size[0], bottom_y - top_y))
+    black = Image.new("RGB", base.size, (0, 0, 0))
+    mask = Image.new("L", base.size, 0)
+    mask.paste(grad, (0, top_y))
+    return Image.composite(black, base, mask)
 
 
-def frac_crop(img, box, tw, th):
-    iw, ih = img.size
-    left = int(box[0] * iw)
-    upper = int(box[1] * ih)
-    right = int(box[2] * iw)
-    lower = int(box[3] * ih)
-    cropped = img.crop((left, upper, right, lower))
-    return ImageOps.fit(cropped, (tw, th), method=Image.LANCZOS)
-
-
-def paste_thumb(img, draw, x, y, w, h, photo, box):
-    src = Image.open(os.path.join(PHOTOS, photo)).convert("RGB")
-    thumb = frac_crop(src, box, w, h)
-    img.paste(thumb, (x, y))
-    draw.rectangle([x, y, x + w - 1, y + h - 1], outline=BORDER, width=1)
-
-
-def draw_btc_chart(draw, x, y, w, h):
-    # Verified Finnhub (Binance BTC/USDT): daily closes Nov 18-20 plus
-    # the 21 Nov 11:19 UTC quote. Price fell below $60,000 for the
-    # first time since July; lowest since September 2024.
-    data = [("18", 63068), ("19", 61987), ("20", 58952), ("21", 57875)]
-    draw.rectangle([x, y, x + w - 1, y + h - 1], fill=PANEL, outline=BORDER)
-    left, right = x + 16, x + w - 12
-    top, bottom = y + 18, y + h - 28
-    lo, hi = 55000, 65000
-
-    def px(i):
-        return left + (right - left) * i / (len(data) - 1)
-
-    def py(price):
-        return bottom - (price - lo) / (hi - lo) * (bottom - top)
-
-    # dashed $60k break line
+# ---------- Bitcoin chart (PIL, white background) ----------
+def draw_chart(draw, x, y, w, h):
+    closes = [63068, 61987, 58952, 57875]
+    days = ["18", "19", "20", "21"]
+    lo, hi = 56500, 64500
+    pad_l, pad_r, pad_t, pad_b = 4, 4, 16, 14
+    px = lambda i: x + pad_l + i * (w - pad_l - pad_r) / 3
+    py = lambda v: y + pad_t + (hi - v) * (h - pad_t - pad_b) / (hi - lo)
+    # $60k dashed line (electric blue)
     y60 = py(60000)
-    for xx in range(left, right, 8):
-        draw.line([(xx, y60), (min(xx + 4, right), y60)],
-                  fill=(120, 110, 100), width=1)
-    draw.text((right - 34, y60 - 13), "$60k", font=F_CHART_SM,
-              fill=(150, 140, 130))
-    # red line + white dots
-    pts = [(px(i), py(p)) for i, (_, p) in enumerate(data)]
-    draw.line(pts, fill=RED, width=3, joint="curve")
-    for pxx, pyy in pts:
-        draw.ellipse([pxx - 4, pyy - 4, pxx + 4, pyy + 4],
-                     fill=WHITE, outline=RED, width=1)
-    # value labels
-    draw.text((pts[0][0] - 2, pts[0][1] - 15), "$63,068",
-              font=F_CHART, fill=WHITE)
-    draw.text((pts[-1][0] - 52, pts[-1][1] + 8), "$57,875",
-              font=F_CHART, fill=RED)
-    # 24h change tag, top right
-    tag = "−6.3%"
-    tw = draw.textlength(tag, font=F_CHART_B)
-    draw.text((x + w - 8 - tw, y + 5), tag, font=F_CHART_B, fill=RED)
-    # date labels
-    for i, (d, _) in enumerate(data):
-        dw = draw.textlength(d, font=F_CHART_SM)
-        draw.text((px(i) - dw / 2, bottom + 5), d,
-                  font=F_CHART_SM, fill=MUTED)
+    for dx in range(x + pad_l, x + w - pad_r, 8):
+        draw.line([(dx, y60), (min(dx + 5, x + w - pad_r), y60)], fill=BLUE, width=2)
+    draw.text((x + pad_l + 2, y60 - 13), "$60k", font=F_BOLD(10), fill=BLUE)
+    # gridline at top value
+    draw.text((x + pad_l, y + 1), "$63,068", font=F_BOLD(11), fill=INK)
+    draw.text((x + w - pad_r - 42, y + 1), "-6.3%", font=F_BOLD(12), fill=RED)
+    # red price line
+    pts = [(px(i), py(v)) for i, v in enumerate(closes)]
+    for a, b in zip(pts, pts[1:]):
+        draw.line([a, b], fill=RED, width=3)
+    for pxi, pyi in pts:
+        draw.ellipse([pxi - 3, pyi - 3, pxi + 3, pyi + 3], fill=RED)
+    draw.text((px(3) - 46, py(closes[3]) - 20), "$57,875",
+              font=F_BOLD(12), fill=RED)
+    # day labels along the bottom (x-axis)
+    for i, d in enumerate(days):
+        draw.text((px(i) - 6, y + h - 12), d, font=F_REG(10), fill=MUTED)
 
 
-def scrim(img, x0, y0, w, h, a_top=60, a_bot=210):
-    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    od = ImageDraw.Draw(overlay)
-    for i in range(h):
-        a = int(a_top + (a_bot - a_top) * (i / h) ** 1.2)
-        od.line([(0, i), (w, i)], fill=(0, 0, 0, a))
-    img.paste(overlay, (x0, y0), overlay)
+# ---------- Kryvyi Rih: stylised Ukraine map graphic ----------
+UKRAINE = [
+    (0.03, 0.52), (0.08, 0.38), (0.18, 0.28), (0.32, 0.20), (0.48, 0.17),
+    (0.64, 0.20), (0.78, 0.28), (0.90, 0.38), (0.96, 0.50), (0.93, 0.62),
+    (0.86, 0.70), (0.78, 0.74), (0.70, 0.78), (0.66, 0.92), (0.60, 0.98),
+    (0.56, 0.85), (0.50, 0.78), (0.38, 0.76), (0.25, 0.72), (0.12, 0.66),
+    (0.04, 0.60),
+]
+
+
+def draw_map(draw, x, y, w, h):
+    # uniform-scale Ukraine outline on the left, bold red label on the right
+    span_x, span_y = 0.93, 0.81
+    scale = min((w * 0.46) / span_x, (h - 4) / span_y)
+    mw, mh = span_x * scale, span_y * scale
+    mx = x + 4
+    my = y + (h - mh) / 2 - 0.17 * scale
+    poly = [(mx + px * scale, my + py * scale) for px, py in UKRAINE]
+    draw.polygon(poly, fill=MAP_FILL, outline=MAP_LINE, width=2)
+    kx, ky = mx + 0.48 * scale, my + 0.30 * scale
+    rx, ry = mx + 0.55 * scale, my + 0.68 * scale
+    draw.ellipse([kx - 2, ky - 2, kx + 2, ky + 2], fill=INK)
+    draw.ellipse([rx - 5, ry - 5, rx + 5, ry + 5], fill=RED)
+    draw.ellipse([rx - 8, ry - 8, rx + 8, ry + 8], outline=RED, width=2)
+    draw.text((kx + 5, ky - 6), "KYIV", font=F_BOLD(9), fill=INK)
+    tx = x + int(w * 0.50)
+    draw.text((tx, y + 24), "KRYVYI", font=F_BOLD(16), fill=RED)
+    draw.text((tx, y + 42), "RIH", font=F_BOLD(16), fill=RED)
+    draw.text((tx, y + 62), "UKRAINE", font=F_BOLD(10), fill=MUTED)
+
+
+# ---------- story data (same 24 stories) ----------
+ROW1 = [
+    dict(head="AI BUST: NASDAQ -5.3%",
+         body="Worst week since 2020 - $4T wiped out. Anthropic $88.91. Nvidia -14%.",
+         cap="FILE PHOTO: NYSE sign",
+         thumb=("photo", "photos/nyse.jpg", (0.44, 0.14, 0.76, 0.28))),
+    dict(head="TRUMP WEIGHS IRAN STRIKES",
+         body="US weighs another round of strikes as Israel presses for action.",
+         cap="FILE PHOTO: President Trump, Jan 2025",
+         thumb=("photo", "photos/trump.jpg", (0.05, 0.34, 0.95, 0.68))),
+    dict(head="COP31 IN OVERTIME, NO DEAL",
+         body="Draft drops every mention of fossil fuels. Third text due Saturday.",
+         cap="COP31, Antalya, 12 Nov 2026",
+         thumb=("photo", "photos/cop31.jpg", (0.12, 0.08, 0.92, 0.68))),
+    dict(head="BITCOIN SINKS BELOW $60,000",
+         body="BTC $57,875, down 6.3% in 24h - lowest since September 2024.",
+         cap="CHART: Binance BTC/USDT, Nov 18-21",
+         thumb=("chart",)),
+]
+ROW2 = [
+    dict(head="PERU QUAKE 6.7, NO DEATHS",
+         body="Magnitude 6.7 quake shook Lima; residents fled to the streets.",
+         cap="FILE PHOTO: Lima coastline",
+         thumb=("photo", "photos/peru_lima.jpg", (0.00, 0.50, 0.60, 1.00))),
+    dict(head="RIYADH STOPS 3 HOUTHI MISSILES",
+         body="Second attack on the Saudi capital in days; tallest tower hit Thursday.",
+         cap="FILE PHOTO: Riyadh skyline",
+         thumb=("photo", "photos/riyadh.jpg", (0.42, 0.22, 0.82, 0.55))),
+    dict(head="KRYVYI RIH: BOY, 7, KILLED",
+         body="Double-tap ballistic strike: a boy, 7, and a paramedic killed; 42 hurt.",
+         cap="GRAPHIC: Kryvyi Rih, Ukraine",
+         thumb=("map",)),
+    dict(head="GEN Z STRIKE SWEEPS EUROPE",
+         body="Youth walkouts in 25 countries over living costs, climate, rearmament.",
+         cap="FILE PHOTO: youth climate strike, 2022",
+         thumb=("photo", "photos/genz_protest.jpg", (0.36, 0.54, 0.84, 0.94))),
+]
+
+BRIEFS_L = [
+    ("KYIV:", "3 killed in overnight Russian strikes."),
+    ("KERCH:", "Bridge hit a third time."),
+    ("UK:", "1,000 drones for Ukraine, GBP 260m."),
+    ("TRUMP:", "Tells Europe to defund Ukraine."),
+    ("AI TAX:", "'Tremendous tax' on AI giants."),
+    ("IRAN:", "War 'into 2027', IRGC 58th MQ-9 claim."),
+    ("N. KOREA:", "Yongbyon expanded, IAEA 'serious concern'."),
+    ("RIKERS:", "Closure by 2032."),
+]
+BRIEFS_R = [
+    ("UFO FILES:", "43 files released."),
+    ("UKRAINE:", "Hit 3 Russian launchers."),
+    ("EU AID:", "EUR 1.71bn for Ukraine."),
+    ("GREENLAND:", "Denmark ratifies US deal 109-0."),
+    ("INDIA-JAPAN:", "2+2 ties."),
+    ("CANCER PILL:", "Daraxonrasib + chemo shrank tumours 61%."),
+    ("ANTHROPIC:", "$2tn debut, then -8.5%."),
+]
+
+
+def draw_story_row(img, draw, y, stories, thumb_h=96):
+    row_h = thumb_h + 100
+    for i, st in enumerate(stories):
+        x = MARGIN + i * (COLW + GAP)
+        spec = st["thumb"]
+        if spec[0] == "photo":
+            src = Image.open(os.path.join(HERE, spec[1])).convert("RGB")
+            img.paste(cover_crop(src, spec[2], COLW, thumb_h), (x, y))
+        elif spec[0] == "chart":
+            draw.rectangle([x, y, x + COLW, y + thumb_h], fill=WHITE,
+                           outline=RULE, width=1)
+            draw_chart(draw, x, y, COLW, thumb_h)
+        else:  # map
+            draw.rectangle([x, y, x + COLW, y + thumb_h], fill=WHITE,
+                           outline=RULE, width=1)
+            draw_map(draw, x, y, COLW, thumb_h)
+        ty = y + thumb_h + 6
+        for line in wrap(draw, st["head"], F_BOLD(19), COLW)[:2]:
+            draw.text((x, ty), line, font=F_BOLD(19), fill=INK)
+            ty += 22
+        ty = y + thumb_h + 6 + 44 + 2
+        for line in wrap(draw, st["body"], F_REG(12), COLW)[:2]:
+            draw.text((x, ty), line, font=F_REG(12), fill=BODY)
+            ty += 15
+        draw.text((x, y + thumb_h + 90), st["cap"],
+                  font=F_REG(10), fill=MUTED)
+    return y + row_h
 
 
 def main():
-    img = Image.new("RGB", (W, H), BG)
+    img = Image.new("RGB", (W, H), WHITE)
     draw = ImageDraw.Draw(img)
 
-    # kicker
-    centered(draw, 6, "THE WORLD, IN ONE IMAGE", F_KICK, AMBER)
+    # ---- kicker ----
+    draw.text((W // 2, 8), "THE WORLD, IN ONE IMAGE", font=F_BOLD(16),
+              fill=RED, anchor="ma")
 
-    # masthead: WORLD (white) + ON EDGE (red), huge and centered
-    part1, part2 = "WORLD ", "ON EDGE"
-    w1 = draw.textlength(part1, font=F_MAST)
-    w2 = draw.textlength(part2, font=F_MAST)
-    mx = (W - w1 - w2) / 2
-    draw.text((mx, 24), part1, font=F_MAST, fill=WHITE)
-    draw.text((mx + w1, 24), part2, font=F_MAST, fill=RED)
+    # ---- masthead: WORLD (black) + ON EDGE (red), auto-fit ----
+    size = 78
+    while size > 60:
+        f = F_BOLD(size)
+        if draw.textlength("WORLD ON EDGE", font=f) <= W - 2 * MARGIN:
+            break
+        size -= 2
+    f = F_BOLD(size)
+    w_world = draw.textlength("WORLD ", font=f)
+    w_edge = draw.textlength("ON EDGE", font=f)
+    total = w_world + w_edge
+    x0 = (W - total) // 2
+    draw.text((x0, 26), "WORLD ", font=f, fill=INK)
+    draw.text((x0 + w_world, 26), "ON EDGE", font=f, fill=RED)
+    mast_bottom = 26 + size + 6
 
-    # amber date band
-    draw.rectangle([0, 116, W - 1, 145], fill=AMBER)
-    centered(draw, 121, "SATURDAY, 21 NOVEMBER 2026", F_DATE, (0, 0, 0))
+    # ---- date band: vivid yellow, black text ----
+    band_y = mast_bottom + 4
+    draw.rectangle([MARGIN, band_y, W - MARGIN, band_y + 28], fill=YELLOW)
+    draw.text((W // 2, band_y + 4), "SATURDAY, 21 NOVEMBER 2026",
+              font=F_BOLD(19), fill=INK, anchor="ma")
 
-    # hero: full-width photo with overlaid headline
-    hero = Image.open(os.path.join(PHOTOS, "cover_tusk.jpg")).convert("RGB")
-    hero = ImageOps.fit(hero, (W, 250), method=Image.LANCZOS,
-                        centering=(0.5, 0.35))
-    img.paste(hero, (0, 146))
-    scrim(img, 0, 146, W, 250)
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([MARGIN, 158, MARGIN + 282, 183], fill=RED)
-    lab = "COVER STORY — NATO UNDER FIRE"
-    lw = draw.textlength(lab, font=F_LABEL)
-    draw.text((MARGIN + (282 - lw) / 2, 164), lab, font=F_LABEL, fill=WHITE)
-    draw.text((MARGIN, 206), "MISSILES LAND IN", font=F_HERO, fill=WHITE)
-    draw.text((MARGIN, 270), "NATO POLAND", font=F_HERO, fill=WHITE)
-    draw.text((MARGIN, 342),
-              "Two Russian Kh-101s and a drone crashed in Poland during a mass strike on Ukraine.",
-              font=F_DECK, fill=WHITE)
-    draw.text((MARGIN, 368),
-              "Tusk: “intentional provocation” · Rutte: “grave violation”",
-              font=F_QUOTE, fill=AMBER)
-    cap = "FILE PHOTO: PM Donald Tusk with President Zelenskyy, Feb 2024"
-    cw = draw.textlength(cap, font=F_CAP)
-    draw.text((W - MARGIN - cw, 382), cap, font=F_CAP, fill=(200, 195, 185))
+    # ---- hero photo ----
+    hero_y = band_y + 28 + 6
+    hero_h = 252
+    hero = Image.open(os.path.join(HERE, "photos/cover_tusk.jpg")).convert("RGB")
+    hero = cover_crop(hero, (0.00, 0.22, 1.00, 0.63), W - 2 * MARGIN, hero_h)
+    hero = bottom_gradient(hero, int(hero_h * 0.42), hero_h)
+    img.paste(hero, (MARGIN, hero_y))
+    d2 = ImageDraw.Draw(img)
+    # cover-story label (red, white text) on the photo
+    label = "COVER STORY - NATO UNDER FIRE"
+    lw = d2.textlength(label, font=F_BOLD(15)) + 20
+    d2.rectangle([MARGIN + 10, hero_y + 10, MARGIN + 10 + lw, hero_y + 36],
+                 fill=RED)
+    d2.text((MARGIN + 20, hero_y + 14), label, font=F_BOLD(15), fill=WHITE)
+    # headline over the gradient (white, two lines)
+    hy = hero_y + hero_h - 140
+    d2.text((MARGIN + 12, hy), "MISSILES LAND IN", font=F_BOLD(42), fill=WHITE)
+    d2.text((MARGIN + 12, hy + 48), "NATO POLAND", font=F_BOLD(42), fill=WHITE)
+    d2.text((MARGIN + 12, hy + 100),
+            "Two Russian Kh-101s and a drone crashed in Poland during a mass strike on Ukraine.",
+            font=F_REG(16), fill=(235, 235, 235))
+    d2.text((MARGIN + 12, hy + 121),
+            "Tusk: \u201cintentional provocation\u201d  \u00b7  Rutte: \u201cgrave violation\u201d",
+            font=F_IT(15), fill=YELLOW)
+    d2.text((W - MARGIN - 12, hero_y + hero_h - 18),
+            "FILE PHOTO: PM Donald Tusk with President Zelenskyy, Feb 2024",
+            font=F_REG(11), fill=(210, 210, 210), anchor="ra")
 
-    # red stats bar
-    draw.rectangle([0, 396, W - 1, 423], fill=RED)
-    centered(draw, 401, "400+ DRONES · 110+ MISSILES · 0 HURT IN POLAND",
-             F_STATS, WHITE)
+    # ---- red stats bar ----
+    stats_y = hero_y + hero_h + 6
+    draw.rectangle([MARGIN, stats_y, W - MARGIN, stats_y + 28], fill=RED)
+    draw.text((W // 2, stats_y + 4),
+              "400+ DRONES  \u00b7  110+ MISSILES  \u00b7  0 HURT IN POLAND",
+              font=F_BOLD(17), fill=WHITE, anchor="ma")
 
-    # ---- thumbnail row: only the hottest 4 stories get an image ----
-    thumb_y = 436
-    thumb_h = 118
-    thumbs = [
-        dict(photo="nyse.jpg", box=(0.40, 0.15, 0.70, 0.27),
-             head="AI BUST: NASDAQ −5.3%",
-             body="Worst week since 2020 — $4 trillion wiped out. Anthropic sank to $88.91. Nvidia −14%.",
-             cap="FILE PHOTO: NYSE sign"),
-        dict(photo="trump.jpg", box=(0.06, 0.217, 0.94, 0.543),
-             head="TRUMP WEIGHS IRAN STRIKES",
-             body="US weighs another round of strikes as Israel presses for action.",
-             cap="FILE PHOTO: President Trump, Jan 2025"),
-        dict(photo="cop31.jpg", box=(0.30, 0.05, 1.0, 0.55),
-             head="COP31 IN OVERTIME, NO DEAL",
-             body="Draft drops every mention of fossil fuels. A third text is due Saturday morning.",
-             cap="COP31, Antalya, 12 Nov 2026"),
-        dict(chart=True,
-             head="BITCOIN SINKS BELOW $60,000",
-             body="BTC $57,875, down 6.3% in 24h — lowest since September 2024.",
-             cap="CHART: Binance BTC/USDT, Nov 18–21"),
-    ]
-    for i, cell in enumerate(thumbs):
-        x = COL_X[i]
-        if cell.get("chart"):
-            draw_btc_chart(draw, x, thumb_y, COL_W, thumb_h)
-        else:
-            paste_thumb(img, draw, x, thumb_y, COL_W, thumb_h,
-                        cell["photo"], cell["box"])
-        draw_lines(draw, x, thumb_y + 126, cell["head"], F_HEAD, WHITE,
-                   COL_W, 21, max_lines=2)
-        draw_lines(draw, x, thumb_y + 172, cell["body"], F_BODY, BODY,
-                   COL_W, 16, max_lines=3)
-        draw.text((x, thumb_y + 226), cell["cap"], font=F_SMALL, fill=MUTED)
+    # ---- supporting rows (all 8 with thumbnails) ----
+    y = draw_story_row(img, draw, stats_y + 28 + 6, ROW1)
+    y = draw_story_row(img, draw, y + 4, ROW2)
 
-    # ---- text-only row: no image, headline + body only ----
-    text_y = 688
-    texts = [
-        ("PERU QUAKE 6.7, NO DEATHS",
-         "Magnitude 6.7 quake shook Lima; residents fled into the streets. No deaths."),
-        ("RIYADH STOPS 3 HOUTHI MISSILES",
-         "Second attack on the Saudi capital in days; tallest tower hit Thursday."),
-        ("KRYVYI RIH: BOY, 7, KILLED",
-         "Double-tap ballistic strike: a boy, 7, and a paramedic killed; 42 hurt."),
-        ("GEN Z STRIKE SWEEPS EUROPE",
-         "Youth walkouts in 25 countries over living costs, climate and rearmament."),
-    ]
-    for i, (head, body) in enumerate(texts):
-        x = COL_X[i]
-        draw.rectangle([x, text_y, x + COL_W - 1, text_y + 2], fill=RED)
-        draw_lines(draw, x, text_y + 10, head, F_HEAD, WHITE,
-                   COL_W, 21, max_lines=2)
-        draw_lines(draw, x, text_y + 56, body, F_BODY, BODY,
-                   COL_W, 16, max_lines=3)
+    # ---- briefs panel ----
+    by = y + 4
+    draw.rectangle([MARGIN, by, W - MARGIN, by + 164], fill=PANEL)
+    draw.text((MARGIN + 12, by + 6), "THE DAY IN BRIEF", font=F_BOLD(20),
+              fill=RED)
+    draw.rectangle([MARGIN + 12, by + 32, W - MARGIN - 12, by + 34], fill=RED)
+    col_w = (W - 2 * MARGIN - 24 - 20) // 2
+    for col, items in enumerate([BRIEFS_L, BRIEFS_R]):
+        bx = MARGIN + 12 + col * (col_w + 20)
+        iy = by + 40
+        for lead, text in items:
+            draw.rectangle([bx, iy + 3, bx + 8, iy + 11], fill=RED)
+            draw.text((bx + 14, iy), lead, font=F_BOLD(12), fill=INK)
+            tw = draw.textlength(lead + " ", font=F_BOLD(12))
+            draw.text((bx + 14 + tw, iy), text, font=F_REG(12), fill=BODY)
+            iy += 15
+    foot_y = by + 164 + 4
 
-    # ---- briefs, two columns ----
-    draw.text((MARGIN, 812), "THE DAY IN BRIEF", font=F_BRIEF_H, fill=RED)
-    briefs_left = [
-        "KYIV: 3 killed as strikes cripple bridges, cut power.",
-        "KERCH: Bridge hit 3rd time; Putin vows 'far more painful' reply.",
-        "UK: 1,000 long-range drones for Ukraine in a £260m package.",
-        "TRUMP: Tells Europe to defund Ukraine after Putin summit.",
-        "AI TAX: 'Tremendous tax' threat on AI centres built abroad.",
-        "IRAN: War 'into 2027'; IRGC claims 58th MQ-9 downed, US silent.",
-        "N. KOREA: Yongbyon expanded; IAEA warns 'serious concern'.",
-        "RIKERS: Close Rikers by 2032; four borough jails, $16bn.",
-    ]
-    briefs_right = [
-        "UFO FILES: 43 UAP files, 3 new videos released; archive 521.",
-        "UKRAINE: Kyiv hit three Russian launchers; one destroyed.",
-        "EU AID: €1.71bn more — drones, ammunition, air defence.",
-        "GREENLAND: Denmark ratifies US security deal, 109–0.",
-        "INDIA–JAPAN: 2+2 talks deepen defence ties.",
-        "CANCER PILL: Daraxonrasib + chemo shrank tumours 61%.",
-        "ANTHROPIC: $2tn debut, then −8.5% on day two.",
-    ]
-    brief_w = 476
-    for col, items in ((MARGIN, briefs_left), (524, briefs_right)):
-        y = 840
-        for item in items:
-            draw.rectangle([col, y + 5, col + 5, y + 10], fill=RED)
-            label, _, rest = item.partition(": ")
-            label = label + ":"
-            lx = col + 14
-            draw.text((lx, y), label, font=F_BRIEF_B, fill=WHITE)
-            lw = draw.textlength(label, font=F_BRIEF_B)
-            draw.text((lx + lw + 4, y), rest, font=F_BRIEF, fill=BODY)
-            y += 18
+    # ---- footer ----
+    draw.text((W // 2, foot_y),
+              "Sources: AP \u00b7 Reuters \u00b7 WSJ \u00b7 CNN \u00b7 NYT \u00b7 ISW \u00b7 IAEA \u00b7 USGS \u00b7 European Commission \u00b7 Finnhub / Binance \u00b7 CoinMarketCap",
+              font=F_REG(11), fill=MUTED, anchor="ma")
+    assert foot_y + 14 <= H, f"layout overflow: footer ends {foot_y + 14}"
 
-    # footer
-    centered(draw, 994,
-             "Sources: AP · Reuters · WSJ · CNN · NYT · ISW · IAEA · USGS · European Commission · Finnhub / Binance · CoinMarketCap — Photos: see README",
-             F_FOOT, MUTED)
-
-    out = os.path.join(BASE, "entry.png")
-    img.save(out, "PNG")
-    digest = hashlib.sha256(open(out, "rb").read()).hexdigest()
-    print("entry.png", img.size, os.path.getsize(out), "bytes")
-    print("sha256", digest)
+    out = os.path.join(HERE, "entry.png")
+    img.save(out, "PNG", optimize=True)
+    with open(out, "rb") as fh:
+        sha = hashlib.sha256(fh.read()).hexdigest()
+    print(f"wrote {out} {os.path.getsize(out)} bytes sha256={sha}")
 
 
 if __name__ == "__main__":
