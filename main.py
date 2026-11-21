@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Entrypoint: copy the pre-rendered entry.png to the output directory.
+"""Copy the pre-rendered entry.png into the output directory.
 
-Standard library only. No network. Deterministic: the output is a
-byte-for-byte copy of entry.png, so two runs produce identical output.
+Standard library only. No network, no image work: the image is drawn
+by render_image.py at build time and shipped as entry.png.
 """
 import hashlib
 import os
@@ -13,15 +13,14 @@ import sys
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     src = os.path.join(here, "entry.png")
-    out = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
-    if not os.path.isdir(out):
-        out = "."
-    dst = os.path.join(out, "entry.png")
+    outdir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
+    if not os.path.isdir(outdir):
+        outdir = os.path.join(os.getcwd())
+    dst = os.path.join(outdir, "entry.png")
     shutil.copyfile(src, dst)
-    h = hashlib.sha256()
-    with open(dst, "rb") as f:
-        h.update(f.read())
-    print(h.hexdigest())
+    with open(dst, "rb") as fh:
+        digest = hashlib.sha256(fh.read()).hexdigest()
+    print(digest)
     return 0
 
 
