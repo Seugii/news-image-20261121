@@ -14,14 +14,20 @@ Entry for the make.fun competition
 
 Round 2 (v2) of the entry — a darker, bolder magazine cover than
 round 1, built after round 1 scored a 0.975976 judge rate but ranked
-~809 of ~4,580 entries. Same cover story, denser: 23 stories from
+~809 of ~4,580 entries. Same cover story, denser: 24 stories from
 Saturday 21 November 2026, all verified against wire reporting.
+
+Revised after Xie's review of v2: only the hottest supporting
+stories carry a small, clear thumbnail (AI bust, Trump, COP31,
+Bitcoin); the rest are text-only. Bitcoin added — BTC $57,875,
+down 6.3% in 24h, below $60,000 for the first time since July.
 
 A near-black background with a vivid red and amber accent. The
 masthead "WORLD ON EDGE" is the first thing the eye lands on, with
 the date in an amber band beneath it. A full-width hero photo carries
-the cover headline; a red stats bar, a three-across and a
-four-across supporting band, and a two-column briefs section follow.
+the cover headline; a red stats bar, a four-across thumbnail row
+(only hot stories, each a small clear thumbnail), a four-across
+text-only row, and a two-column briefs section follow.
 
 **Cover story — Missiles land in NATO Poland.** Two Russian Kh-101
 cruise missiles and a jet-powered drone crashed in south-east Poland
@@ -31,44 +37,56 @@ it an "intentional provocation"; NATO Secretary-General Mark Rutte
 called it a "grave violation". No casualties in Poland. Poland asked
 NATO for more Eastern Sentry forces (F-35s, AWACS).
 
-**Supporting stories**
+**Supporting stories (with thumbnails)**
 
 - **AI bust: Nasdaq −5.3%.** Worst week since March 2020 — $4
   trillion wiped out. Anthropic sank to $88.91, near its $83 IPO
   price. Nvidia −14%.
+- **Trump weighs Iran strikes.** US weighs another round of
+  extensive strikes as Israel presses for action.
 - **COP31 in overtime, no deal.** The draft drops every mention of
   fossil fuels; a third text was due Saturday morning in Antalya.
+- **Bitcoin sinks below $60,000.** BTC $57,875, down 6.3% in 24h
+  and ~14% in a week — lowest since September 2024, below $60,000
+  for the first time since July. Chart drawn from Finnhub (Binance
+  BTC/USDT) daily closes: Nov 18 $63,068, Nov 19 $61,987,
+  Nov 20 $58,952, Nov 21 $57,875 (11:19 UTC).
+
+**Supporting stories (text-only)**
+
 - **Peru quake 6.7, no deaths.** Magnitude 6.7 quake in the Andes
   shook Lima; residents fled into the streets. No deaths reported.
 - **Riyadh stops 3 Houthi missiles.** Second attack on the Saudi
   capital in days, after its tallest tower was hit on Thursday.
 - **Kryvyi Rih: boy, 7, killed.** Double-tap ballistic strike: a
   boy, 7, and a paramedic killed; 42 hurt.
-- **Trump weighs Iran strikes.** US weighs another round of
-  extensive strikes as Israel presses for action.
 - **Gen Z strike sweeps Europe.** Youth walkouts in 25 countries
   over living costs, climate and rearmament.
+
+Thumbnails: AI bust (NYSE sign), Trump (headshot), COP31 (speaker),
+Bitcoin (price chart). Peru, Riyadh, Kryvyi Rih and Gen Z are
+text-only by design — no photo or illustration.
 
 **The day in brief**
 
 - Kyiv: 3 killed as strikes cripple bridges, cut power.
-- Kerch: Bridge hit a 3rd time; Putin vows a "far more painful" reply.
+- Kerch: Bridge hit 3rd time; Putin vows a "far more painful" reply.
 - UK: 1,000 long-range drones for Ukraine in a £260m package.
 - Trump: Tells Europe to defund Ukraine after Putin summit.
 - AI tax: "Tremendous tax" threat on AI centres built abroad.
 - Iran: War "into 2027"; IRGC claims 58th MQ-9 downed, US silent.
-- N. Korea: Yongbyon plant expanded; IAEA warns of "serious concern".
+- N. Korea: Yongbyon expanded; IAEA warns of "serious concern".
 - Rikers: Close Rikers by 2032; four borough jails, $16bn.
 - UFO files: 43 UAP files, 3 new videos released; archive 521.
 - Ukraine: Kyiv hit three Russian launchers; one destroyed.
 - EU aid: €1.71bn more — drones, ammunition, air defence.
 - Greenland: Denmark ratifies US security deal, 109–0.
-- India–Japan: 2+2 talks deepen defence ties; live-fire in India.
-- Cancer pill: Daraxonrasib + chemo — tumours shrank in 61%, vanished in 8%.
+- India–Japan: 2+2 talks deepen defence ties.
+- Cancer pill: Daraxonrasib + chemo shrank tumours 61%.
 - Anthropic: $2tn debut, then −8.5% on day two.
 
 Sources: AP, Reuters, WSJ, CNN, NYT, ISW, IAEA, USGS, European
-Commission.
+Commission, Finnhub (Binance BTC/USDT), CoinMarketCap.
 
 ## How it works
 
@@ -78,9 +96,12 @@ or the current directory) and prints its sha256. No network, fully
 deterministic: two runs produce byte-identical output.
 
 `render_image.py` is the renderer that drew `entry.png` with PIL
-from the photos in `photos/` plus one flat illustration (the Kryvyi
-Rih night scene, captioned ILLUSTRATION in the image). Fonts are
-vendored Liberation Sans in `fonts/`.
+from the photos in `photos/` plus one PIL-drawn Bitcoin price chart
+(verified Finnhub/Binance daily closes, Nov 18–21). Thumbnails are
+tight crops chosen to stay clear at small size — the NYSE sign, a
+full-face Trump headshot, the COP31 speaker — while the other
+supporting stories are text-only. Fonts are vendored Liberation Sans
+in `fonts/`.
 
 ## Photo credits
 
@@ -114,6 +135,12 @@ captioned FILE PHOTO in the image.
 7. `photos/genz_protest.jpg` — "2022-Climate-Strike-3-1000275
    (52023205884).jpg", CC BY 2.0, 22 April 2022.
    https://commons.wikimedia.org/wiki/File:2022-Climate-Strike-3-1000275_(52023205884).jpg
+
+Note: `photos/riyadh.jpg`, `photos/peru_lima.jpg` and
+`photos/genz_protest.jpg` are credited here because they are in the
+repository, but the revised image shows those three stories as
+text-only (no thumbnail). The Bitcoin chart is drawn by the renderer
+from verified market data, not a photograph.
 
 ## Licence
 
