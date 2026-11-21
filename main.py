@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Copy the pre-rendered entry.png into the output directory.
-
-Standard library only. No network, no image work: the image is drawn
-by render_image.py at build time and shipped as entry.png.
-"""
+"""Copy the pre-rendered entry.png to the output directory (stdlib only)."""
 import hashlib
 import os
 import shutil
@@ -13,14 +9,17 @@ import sys
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     src = os.path.join(here, "entry.png")
-    outdir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
-    if not os.path.isdir(outdir):
-        outdir = os.path.join(os.getcwd())
+    outdir = os.environ.get("MAKEFUN_OUTPUT_DIR")
+    if not outdir:
+        outdir = "/output" if os.path.isdir("/output") else "."
+    os.makedirs(outdir, exist_ok=True)
     dst = os.path.join(outdir, "entry.png")
     shutil.copyfile(src, dst)
+    digest = hashlib.sha256()
     with open(dst, "rb") as fh:
-        digest = hashlib.sha256(fh.read()).hexdigest()
-    print(digest)
+        for chunk in iter(lambda: fh.read(65536), b""):
+            digest.update(chunk)
+    print(digest.hexdigest())
     return 0
 
 
