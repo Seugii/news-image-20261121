@@ -12,22 +12,26 @@ Entry for the make.fun competition
 
 ## The image
 
-Round 2 (v2) of the entry — a darker, bolder magazine cover than
-round 1, built after round 1 scored a 0.975976 judge rate but ranked
-~809 of ~4,580 entries. Same cover story, denser: 24 stories from
-Saturday 21 November 2026, all verified against wire reporting.
+Round 2 (v3) of the entry — a bright, punchy magazine cover, rebuilt
+after round 1 scored a 0.975976 judge rate but ranked ~809 of
+~4,580 entries. Same cover story, denser: 24 stories from Saturday
+21 November 2026, all verified against wire reporting.
 
-Revised after Xie's review of v2: only the hottest supporting
-stories carry a small, clear thumbnail (AI bust, Trump, COP31,
-Bitcoin); the rest are text-only. Bitcoin added — BTC $57,875,
-down 6.3% in 24h, below $60,000 for the first time since July.
+Revised after Xie's review: the near-black charcoal palette looked
+gloomy ("suram"), so the colours were changed to a bright scheme —
+clean white background, bold red masthead accent, electric-blue
+secondary, vivid-yellow date band, dark text. And every supporting
+story now carries a small, clear thumbnail, so the page reads as
+weighty: the four hottest stories keep their thumbnails (AI bust,
+Trump, COP31, Bitcoin) and the other four gained one too (Peru,
+Riyadh, Kryvyi Rih, Gen Z). Bitcoin stays — BTC $57,875, down 6.3%
+in 24h, below $60,000 for the first time since July.
 
-A near-black background with a vivid red and amber accent. The
-masthead "WORLD ON EDGE" is the first thing the eye lands on, with
-the date in an amber band beneath it. A full-width hero photo carries
-the cover headline; a red stats bar, a four-across thumbnail row
-(only hot stories, each a small clear thumbnail), a four-across
-text-only row, and a two-column briefs section follow.
+A white background with a red "ON EDGE" masthead accent and a vivid
+yellow date band. A full-width hero photo carries the cover
+headline; a red stats bar, two four-across thumbnail rows (all 8
+supporting stories, each a small clear thumbnail), and a two-column
+briefs section follow.
 
 **Cover story — Missiles land in NATO Poland.** Two Russian Kh-101
 cruise missiles and a jet-powered drone crashed in south-east Poland
@@ -51,9 +55,6 @@ NATO for more Eastern Sentry forces (F-35s, AWACS).
   for the first time since July. Chart drawn from Finnhub (Binance
   BTC/USDT) daily closes: Nov 18 $63,068, Nov 19 $61,987,
   Nov 20 $58,952, Nov 21 $57,875 (11:19 UTC).
-
-**Supporting stories (text-only)**
-
 - **Peru quake 6.7, no deaths.** Magnitude 6.7 quake in the Andes
   shook Lima; residents fled into the streets. No deaths reported.
 - **Riyadh stops 3 Houthi missiles.** Second attack on the Saudi
@@ -64,8 +65,11 @@ NATO for more Eastern Sentry forces (F-35s, AWACS).
   over living costs, climate and rearmament.
 
 Thumbnails: AI bust (NYSE sign), Trump (headshot), COP31 (speaker),
-Bitcoin (price chart). Peru, Riyadh, Kryvyi Rih and Gen Z are
-text-only by design — no photo or illustration.
+Bitcoin (price chart), Peru (Miraflores cliff coastline), Riyadh
+(Kingdom Tower), Kryvyi Rih (PIL map graphic — no freely licensed
+aftermath photo of this strike was available, so the location is
+shown as a stylised Ukraine map with Kryvyi Rih marked), Gen Z
+("CLIMATE JUSTICE" protest banner).
 
 **The day in brief**
 
@@ -97,11 +101,13 @@ deterministic: two runs produce byte-identical output.
 
 `render_image.py` is the renderer that drew `entry.png` with PIL
 from the photos in `photos/` plus one PIL-drawn Bitcoin price chart
-(verified Finnhub/Binance daily closes, Nov 18–21). Thumbnails are
+(verified Finnhub/Binance daily closes, Nov 18–21) and one
+PIL-drawn stylised Ukraine map marking Kryvyi Rih. Thumbnails are
 tight crops chosen to stay clear at small size — the NYSE sign, a
-full-face Trump headshot, the COP31 speaker — while the other
-supporting stories are text-only. Fonts are vendored Liberation Sans
-in `fonts/`.
+full-face Trump headshot, the COP31 speaker, the Miraflores cliff,
+the Kingdom Tower, the "CLIMATE JUSTICE" banner — while the
+Kryvyi Rih thumbnail is a map graphic, not a photograph. Fonts are
+vendored Liberation Sans in `fonts/`.
 
 ## Photo credits
 
@@ -136,11 +142,11 @@ captioned FILE PHOTO in the image.
    (52023205884).jpg", CC BY 2.0, 22 April 2022.
    https://commons.wikimedia.org/wiki/File:2022-Climate-Strike-3-1000275_(52023205884).jpg
 
-Note: `photos/riyadh.jpg`, `photos/peru_lima.jpg` and
-`photos/genz_protest.jpg` are credited here because they are in the
-repository, but the revised image shows those three stories as
-text-only (no thumbnail). The Bitcoin chart is drawn by the renderer
-from verified market data, not a photograph.
+Note: the Kryvyi Rih thumbnail is a PIL-drawn map graphic, not a
+photograph — no freely licensed aftermath photo of the 20–21 Nov
+strike was available on Wikimedia Commons at build time. The
+Bitcoin chart is drawn by the renderer from verified market data,
+not a photograph.
 
 ## Licence
 
